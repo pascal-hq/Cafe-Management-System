@@ -1,60 +1,76 @@
+# app/routes/menu.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.database import SessionLocal
-from app.models import MenuItem
-from app.schemas import MenuItemCreate, MenuItemUpdate, MenuItem
-from app.dependencies import get_current_user, get_db
+from app.models import MenuItem as MenuItemModel
+from app.schemas import (
+    MenuItem as MenuItemSchema,
+    MenuItemCreate,
+    MenuItemUpdate
+)
+from app.dependencies import get_db, require_role
 
 router = APIRouter(prefix="/menu", tags=["Menu"])
 
-# List all menu items
-@router.get("/", response_model=List[MenuItem])
-def list_menu(db: Session = Depends(get_db)):
-    return db.query(MenuItem).all()
 
-# Get item details
-@router.get("/{item_id}", response_model=MenuItem)
+@router.get("/", response_model=List[MenuItemSchema])
+def list_menu(db: Session = Depends(get_db)):
+    return db.query(MenuItemModel).all()
+
+
+@router.get("/{item_id}", response_model=MenuItemSchema)
 def get_menu_item(item_id: int, db: Session = Depends(get_db)):
-    item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+    item = db.query(MenuItemModel).filter(MenuItemModel.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Menu item not found")
     return item
 
-# Add new item (admin only)
-@router.post("/", response_model=MenuItem)
-def create_menu_item(item: MenuItemCreate, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
-    db_item = MenuItem(**item.dict())
+
+@router.post(
+    "/",
+    response_model=MenuItemSchema,
+    dependencies=[Depends(require_role("admin"))]
+)
+def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
+    db_item = MenuItemModel(**item.dict())
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
     return db_item
 
-# Update item (admin only)
-@router.put("/{item_id}", response_model=MenuItem)
-def update_menu_item(item_id: int, item: MenuItemUpdate, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
-    db_item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+
+@router.put(
+    "/{item_id}",
+    response_model=MenuItemSchema,
+    dependencies=[Depends(require_role("admin"))]
+)
+def update_menu_item(
+    item_id: int,
+    item: MenuItemUpdate,
+    db: Session = Depends(get_db)
+):
+    db_item = db.query(MenuItemModel).filter(MenuItemModel.id == item_id).first()
     if not db_item:
         raise HTTPException(status_code=404, detail="Menu item not found")
-    for key, value in item.dict().items():
+
+    for key, value in item.dict(exclude_unset=True).items():
         setattr(db_item, key, value)
+
     db.commit()
     db.refresh(db_item)
     return db_item
 
-# Delete item (admin only)
-@router.delete("/{item_id}")
-def delete_menu_item(item_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
-    db_item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+
+@router.delete(
+    "/{item_id}",
+    dependencies=[Depends(require_role("admin"))]
+)
+def delete_menu_item(item_id: int, db: Session = Depends(get_db)):
+    db_item = db.query(MenuItemModel).filter(MenuItemModel.id == item_id).first()
     if not db_item:
         raise HTTPException(status_code=404, detail="Menu item not found")
+
     db.delete(db_item)
     db.commit()
     return {"detail": "Menu item deleted"}

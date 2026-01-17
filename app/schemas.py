@@ -4,7 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 
 # ----------------------
-# Existing schemas
+# User / Auth Schemas
 # ----------------------
 class UserLogin(BaseModel):
     username: str
@@ -15,19 +15,21 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 # ----------------------
-# Menu schemas
+# Menu Schemas
 # ----------------------
 class MenuItemBase(BaseModel):
     name: str
+    description: Optional[str] = ""   # Add description
     price: float
-    category: Optional[str] = None
-    is_available: Optional[bool] = True
+    category: Optional[str] = "General"  # default to General
+    is_available: bool = True          # default True
 
 class MenuItemCreate(MenuItemBase):
     pass
 
 class MenuItemUpdate(BaseModel):
     name: Optional[str] = None
+    description: Optional[str] = None
     price: Optional[float] = None
     category: Optional[str] = None
     is_available: Optional[bool] = None
@@ -37,10 +39,10 @@ class MenuItem(MenuItemBase):
     created_at: datetime
 
     class Config:
-        from_attributes = True  # ORM mode for FastAPI v2
+        from_attributes = True  # ORM mode
 
 # ----------------------
-# Orders schemas
+# Orders Schemas
 # ----------------------
 class OrderItemCreate(BaseModel):
     menu_item_id: int
@@ -48,35 +50,6 @@ class OrderItemCreate(BaseModel):
 
 class OrderCreate(BaseModel):
     items: List[OrderItemCreate]
-
-class OrderItemOut(BaseModel):
-    id: int
-    menu_item_id: int
-    quantity: int
-    unit_price: float
-
-    class Config:
-        from_attributes = True
-
-class OrderOut(BaseModel):
-    id: int
-    user_id: int
-    total_amount: float
-    status: str
-    created_at: datetime
-    items: List[OrderItemOut]
-
-    class Config:
-        from_attributes = True
-from pydantic import BaseModel
-from typing import List
-from datetime import datetime
-
-# -------- ORDER ITEM --------
-class OrderItemCreate(BaseModel):
-    menu_item_id: int
-    quantity: int
-
 
 class OrderItemResponse(BaseModel):
     menu_item_id: int
@@ -85,12 +58,6 @@ class OrderItemResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-# -------- ORDER --------
-class OrderCreate(BaseModel):
-    items: List[OrderItemCreate]
-
 
 class OrderResponse(BaseModel):
     id: int

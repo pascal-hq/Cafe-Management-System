@@ -1,3 +1,5 @@
+# app/routes/orders.py
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -50,7 +52,7 @@ def create_order(
     return db_order
 
 
-# List orders (admin sees all, staff sees own)
+# List orders
 @router.get("/", response_model=list[OrderResponse])
 def list_orders(
     current_user=Depends(get_current_user),
