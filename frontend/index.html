@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Login</title>
+    <title>Cafe System</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -11,31 +11,78 @@
 <main class="auth-container">
 
     <div class="auth-card">
-        <h1>System Login</h1>
 
-        <form id="loginForm">
+        <h1>Welcome</h1>
+        <p>Select how you want to continue</p>
+
+        <!-- ROLE SELECTION -->
+        <div class="role-buttons">
+            <button id="customerBtn">Continue as Customer</button>
+            <button id="adminBtn" class="danger">Admin Login</button>
+        </div>
+
+        <!-- ADMIN LOGIN (hidden by default) -->
+        <form id="loginForm" class="hidden">
+            <h2>Admin Login</h2>
+
             <input
                 type="text"
                 id="username"
-                placeholder="Username"
-                required
+                placeholder="Admin username"
+                autocomplete="username"
             >
 
             <input
                 type="password"
                 id="password"
                 placeholder="Password"
-                required
+                autocomplete="current-password"
             >
 
             <button type="submit">Login</button>
+            <button type="button" id="cancelLogin" class="secondary">
+                Cancel
+            </button>
         </form>
 
         <p id="loginMessage" class="message"></p>
+
     </div>
 
 </main>
 
 <script src="main.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    const customerBtn = document.getElementById("customerBtn");
+    const adminBtn = document.getElementById("adminBtn");
+    const loginForm = document.getElementById("loginForm");
+    const cancelLogin = document.getElementById("cancelLogin");
+
+    // CUSTOMER FLOW
+    customerBtn.addEventListener("click", () => {
+        localStorage.setItem("role", "customer");
+        window.location.href = "dashboard.html";
+    });
+
+    // SHOW ADMIN LOGIN
+    adminBtn.addEventListener("click", () => {
+        loginForm.classList.remove("hidden");
+        adminBtn.disabled = true;
+        customerBtn.disabled = true;
+    });
+
+    // CANCEL ADMIN LOGIN
+    cancelLogin.addEventListener("click", () => {
+        loginForm.classList.add("hidden");
+        adminBtn.disabled = false;
+        customerBtn.disabled = false;
+    });
+
+});
+</script>
+
 </body>
 </html>

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Panel</title>
+    <title>Admin Dashboard</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -10,7 +10,7 @@
 
 <header class="top-bar">
     <h1>Admin Dashboard</h1>
-    <button id="logoutBtn">Logout</button>
+    <button id="logoutBtn" class="danger">Logout</button>
 </header>
 
 <main class="container">
@@ -18,14 +18,16 @@
     <!-- ADD MENU ITEM -->
     <section class="card">
         <h2>Add Menu Item</h2>
-        <form id="addMenuForm">
+        <form id="addForm">
             <input type="text" id="addName" placeholder="Item name" required>
             <input type="number" id="addPrice" placeholder="Price" step="0.01" required>
             <input type="text" id="addCategory" placeholder="Category">
+
             <label class="checkbox">
                 <input type="checkbox" id="addAvailable" checked>
                 Available
             </label>
+
             <button type="submit">Add Item</button>
         </form>
     </section>
@@ -33,7 +35,7 @@
     <!-- UPDATE MENU ITEM -->
     <section class="card">
         <h2>Update Menu Item</h2>
-        <form id="updateMenuForm">
+        <form id="updateForm">
             <select id="updateSelect" required>
                 <option value="">Select item</option>
             </select>
@@ -60,5 +62,20 @@
 </main>
 
 <script src="main.js"></script>
+
+<script>
+    // Hard protection: admin only
+    document.addEventListener("DOMContentLoaded", () => {
+        const role = localStorage.getItem("role");
+        if (role !== "admin") {
+            alert("Admins only");
+            window.location.href = "index.html";
+        }
+
+        document.getElementById("logoutBtn")
+            .addEventListener("click", logout);
+    });
+</script>
+
 </body>
 </html>

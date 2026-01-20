@@ -1,14 +1,31 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Order History</title>
-  <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <title>Order History</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-  <h1>My Orders</h1>
 
-  <div id="orders"></div>
+<body data-page="orders">
 
-  <script src="main.js"></script>
+<header class="top-bar">
+    <h1>My Orders</h1>
+
+    <div class="actions">
+        <a href="dashboard.html">Back to Dashboard</a>
+        <button onclick="logout()">Logout</button>
+    </div>
+</header>
+
+<main class="container">
+
+    <section class="card">
+        <h2>Order History</h2>
+        <div id="ordersList"></div>
+    </section>
+
+</main>
+
+<script src="main.js"></script>
 </body>
 </html>
