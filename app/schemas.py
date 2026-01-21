@@ -1,31 +1,36 @@
 # app/schemas.py
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 
-# ----------------------
-# User / Auth Schemas
-# ----------------------
+# ===============================
+# AUTH / USER SCHEMAS
+# ===============================
 class UserLogin(BaseModel):
     username: str
     password: str
+
 
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
-# ----------------------
-# Menu Schemas
-# ----------------------
+
+# ===============================
+# MENU SCHEMAS
+# ===============================
 class MenuItemBase(BaseModel):
     name: str
-    description: Optional[str] = ""   # Add description
+    description: Optional[str] = ""
     price: float
-    category: Optional[str] = "General"  # default to General
-    is_available: bool = True          # default True
+    category: Optional[str] = "General"
+    is_available: bool = True
+
 
 class MenuItemCreate(MenuItemBase):
     pass
+
 
 class MenuItemUpdate(BaseModel):
     name: Optional[str] = None
@@ -34,22 +39,26 @@ class MenuItemUpdate(BaseModel):
     category: Optional[str] = None
     is_available: Optional[bool] = None
 
-class MenuItem(MenuItemBase):
+
+class MenuItemResponse(MenuItemBase):
     id: int
     created_at: datetime
 
     class Config:
-        from_attributes = True  # ORM mode
+        orm_mode = True
 
-# ----------------------
-# Orders Schemas
-# ----------------------
+
+# ===============================
+# ORDER SCHEMAS
+# ===============================
 class OrderItemCreate(BaseModel):
     menu_item_id: int
-    quantity: int
+    quantity: int = Field(gt=0, description="Quantity must be greater than zero")
+
 
 class OrderCreate(BaseModel):
     items: List[OrderItemCreate]
+
 
 class OrderItemResponse(BaseModel):
     menu_item_id: int
@@ -57,7 +66,8 @@ class OrderItemResponse(BaseModel):
     unit_price: float
 
     class Config:
-        from_attributes = True
+        orm_mode = True
+
 
 class OrderResponse(BaseModel):
     id: int
@@ -67,4 +77,4 @@ class OrderResponse(BaseModel):
     items: List[OrderItemResponse]
 
     class Config:
-        from_attributes = True
+        orm_mode = True

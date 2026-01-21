@@ -1,3 +1,5 @@
+# app/models.py
+
 from sqlalchemy import (
     Column,
     Integer,
@@ -9,10 +11,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
+
 from .database import Base
 
 # ======================
-# Users table
+# USERS TABLE
 # ======================
 class User(Base):
     __tablename__ = "users"
@@ -23,6 +26,7 @@ class User(Base):
     role = Column(String, nullable=False)  # admin / staff
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # One user → many orders
     orders = relationship(
         "Order",
         back_populates="user",
@@ -31,7 +35,7 @@ class User(Base):
 
 
 # ======================
-# Menu items table
+# MENU ITEMS TABLE
 # ======================
 class MenuItem(Base):
     __tablename__ = "menu_items"
@@ -44,29 +48,37 @@ class MenuItem(Base):
     is_available = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    order_items = relationship("OrderItem", back_populates="menu_item")
+    # One menu item → many order items
+    order_items = relationship(
+        "OrderItem",
+        back_populates="menu_item"
+    )
 
 
 # ======================
-# Orders table
+# ORDERS TABLE
 # ======================
 class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
 
-    # 🔥 FIX: nullable=True for guest orders
+    # Nullable → allows guest orders
     user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True
     )
 
-    total_amount = Column(Float, default=0)
+    total_amount = Column(Float, default=0.0)
     status = Column(String, default="pending")  # pending / paid
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    user = relationship("User", back_populates="orders")
+    # Relationships
+    user = relationship(
+        "User",
+        back_populates="orders"
+    )
 
     items = relationship(
         "OrderItem",
@@ -76,24 +88,35 @@ class Order(Base):
 
 
 # ======================
-# Order items table
+# ORDER ITEMS TABLE
 # ======================
 class OrderItem(Base):
     __tablename__ = "order_items"
 
     id = Column(Integer, primary_key=True, index=True)
+
     order_id = Column(
         Integer,
         ForeignKey("orders.id", ondelete="CASCADE"),
         nullable=False
     )
+
     menu_item_id = Column(
         Integer,
         ForeignKey("menu_items.id"),
         nullable=False
     )
+
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Float, nullable=False)
 
-    order = relationship("Order", back_populates="items")
-    menu_item = relationship("MenuItem", back_populates="order_items")
+    # Relationships
+    order = relationship(
+        "Order",
+        back_populates="items"
+    )
+
+    menu_item = relationship(
+        "MenuItem",
+        back_populates="order_items"
+    )

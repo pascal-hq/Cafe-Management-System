@@ -1,4 +1,5 @@
 # app/dependencies.py
+
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -10,17 +11,18 @@ from .models import User
 from .auth import SECRET_KEY, ALGORITHM
 
 # ===============================
-# OAuth2 scheme (JWT)
+# OAuth2 JWT scheme
+# auto_error=False allows guests to access public endpoints
 # ===============================
-# auto_error=False allows endpoints to handle guests gracefully
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
+
 # ===============================
-# Database session dependency
+# DATABASE SESSION DEPENDENCY
 # ===============================
 def get_db() -> Session:
     """
-    Provides a SQLAlchemy database session and ensures it is closed after use.
+    Provides a SQLAlchemy DB session and ensures cleanup after use.
     """
     db = SessionLocal()
     try:
@@ -28,21 +30,22 @@ def get_db() -> Session:
     finally:
         db.close()
 
+
 # ===============================
-# STRICT AUTH (admin/staff required)
+# STRICT AUTH: Admin / Staff Only
 # ===============================
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> User:
     """
-    Validates JWT token strictly.
+    Strict authentication.
     Raises 401 if token is missing, invalid, or user not found.
     """
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
+            detail="Authentication token missing",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -66,16 +69,17 @@ def get_current_user(
 
     return user
 
+
 # ===============================
-# OPTIONAL AUTH (guests allowed)
+# OPTIONAL AUTH: Guests Allowed
 # ===============================
 def get_optional_user(
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> Optional[User]:
     """
-    Returns the user if token is valid.
-    Returns None if token is missing or invalid (guest user).
+    Returns a User object if JWT token is valid.
+    Returns None if token is missing or invalid (guest access).
     """
     if not token:
         return None
@@ -90,12 +94,14 @@ def get_optional_user(
 
     return db.query(User).filter(User.username == username).first()
 
+
 # ===============================
 # ROLE-BASED ACCESS CONTROL
 # ===============================
 def require_role(required_role: str):
     """
     Enforce role-based access for endpoints.
+
     Usage:
         @router.post("/", dependencies=[Depends(require_role("admin"))])
     """
@@ -103,7 +109,7 @@ def require_role(required_role: str):
         if current_user.role != required_role:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized"
+                detail=f"User must have '{required_role}' role"
             )
         return current_user
 

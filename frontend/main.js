@@ -28,13 +28,12 @@ function authHeaders() {
    CENTRAL API HANDLER
 ========================= */
 async function apiFetch(url, options = {}) {
-    const res = await fetch(url, {
-        ...options,
-        headers: {
-            ...(options.headers || {}),
-            ...(options.auth !== false && isLoggedIn() ? authHeaders() : {})
-        }
-    });
+    const headers = {
+        ...(options.headers || {}),
+        ...(options.auth !== false && isLoggedIn() ? authHeaders() : {})
+    };
+
+    const res = await fetch(url, { ...options, headers });
 
     if (res.status === 401) {
         if (isLoggedIn()) logout();
@@ -52,8 +51,8 @@ async function apiFetch(url, options = {}) {
 /* =========================
    ADMIN LOGIN
 ========================= */
-async function login(e) {
-    e.preventDefault();
+async function login(event) {
+    event.preventDefault();
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
     const msg = document.getElementById("loginMessage");
@@ -139,7 +138,7 @@ function renderOrder() {
         return `
             <div class="order-item">
                 <span>${i.name} x ${i.quantity}</span>
-                <span>${CURRENCY} ${ (i.unit_price * i.quantity).toFixed(2) }</span>
+                <span>${CURRENCY} ${(i.unit_price * i.quantity).toFixed(2)}</span>
             </div>
         `;
     }).join("");
@@ -153,7 +152,7 @@ async function submitOrder() {
     try {
         await apiFetch(`${API_URL}/orders/`, {
             method: "POST",
-            auth: false, // allow guest orders
+            auth: false, // guest allowed
             body: JSON.stringify({
                 items: order.map(i => ({
                     menu_item_id: i.menu_item_id,
@@ -177,24 +176,23 @@ async function loadOrders() {
     const ordersList = document.getElementById("ordersList");
     if (!ordersList) return;
 
+    if (!isLoggedIn()) {
+        ordersList.innerHTML = "<p>Guest users cannot see order history.</p>";
+        return;
+    }
+
     try {
-        if (isLoggedIn()) {
-            const orders = await apiFetch(`${API_URL}/orders/`);
-            ordersList.innerHTML = orders.map(o => `
-                <div class="card">
-                    <h3>Order #${o.id}</h3>
-                    <p>${new Date(o.created_at).toLocaleString()}</p>
-                    <ul>
-                        ${o.items.map(i => `
-                            <li>${i.quantity} × ${i.menu_item_id} @ ${CURRENCY} ${i.unit_price.toFixed(2)}</li>
-                        `).join("")}
-                    </ul>
-                    <strong>Total: ${CURRENCY} ${o.total_amount.toFixed(2)}</strong>
-                </div>
-            `).join("");
-        } else {
-            ordersList.innerHTML = "<p>Guest users cannot see order history.</p>";
-        }
+        const orders = await apiFetch(`${API_URL}/orders/`);
+        ordersList.innerHTML = orders.map(o => `
+            <div class="card">
+                <h3>Order #${o.id}</h3>
+                <p>${new Date(o.created_at).toLocaleString()}</p>
+                <ul>
+                    ${o.items.map(i => `<li>${i.quantity} × ${i.menu_item_id} @ ${CURRENCY} ${i.unit_price.toFixed(2)}</li>`).join("")}
+                </ul>
+                <strong>Total: ${CURRENCY} ${o.total_amount.toFixed(2)}</strong>
+            </div>
+        `).join("");
     } catch (err) {
         ordersList.innerHTML = `<p>Error loading orders: ${err.message}</p>`;
     }
@@ -220,8 +218,8 @@ async function loadAdminMenu() {
         items.map(i => `<option value="${i.id}">${i.name}</option>`).join("");
 }
 
-async function addItem(e) {
-    e.preventDefault();
+async function addItem(event) {
+    event.preventDefault();
     await apiFetch(`${API_URL}/menu/`, {
         method: "POST",
         body: JSON.stringify({
@@ -231,7 +229,7 @@ async function addItem(e) {
             is_available: addAvailable.checked
         })
     });
-    e.target.reset();
+    event.target.reset();
     loadAdminMenu();
 }
 
@@ -240,8 +238,8 @@ async function deleteItem(id) {
     loadAdminMenu();
 }
 
-async function updateItem(e) {
-    e.preventDefault();
+async function updateItem(event) {
+    event.preventDefault();
     const id = updateSelect.value;
     if (!id) return alert("Select an item");
 
@@ -255,7 +253,7 @@ async function updateItem(e) {
         })
     });
 
-    e.target.reset();
+    event.target.reset();
     loadAdminMenu();
 }
 
@@ -264,9 +262,8 @@ async function updateItem(e) {
 ========================= */
 document.addEventListener("DOMContentLoaded", () => {
     // Admin login
-    if (document.getElementById("loginForm")) {
-        loginForm.addEventListener("submit", login);
-    }
+    const loginForm = document.getElementById("loginForm");
+    if (loginForm) loginForm.addEventListener("submit", login);
 
     // Customer dashboard
     if (document.getElementById("menuList")) {
@@ -275,11 +272,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Admin dashboard
+    const addForm = document.getElementById("addForm");
+    const updateForm = document.getElementById("updateForm");
+    const logoutBtn = document.getElementById("logoutBtn");
+
     if (document.getElementById("adminMenuList")) {
         if (!protectPage("admin")) return;
+        if (addForm) addForm.addEventListener("submit", addItem);
+        if (updateForm) updateForm.addEventListener("submit", updateItem);
+        if (logoutBtn) logoutBtn.addEventListener("click", logout);
         loadAdminMenu();
-        addForm.addEventListener("submit", addItem);
-        updateForm.addEventListener("submit", updateItem);
-        logoutBtn.addEventListener("click", logout);
     }
 });
