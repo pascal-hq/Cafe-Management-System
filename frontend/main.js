@@ -5,10 +5,10 @@ const API_URL = "http://127.0.0.1:8000";
 const CURRENCY = "KES";
 
 /* =========================
-   HELPERS
+   AUTH HELPERS
 ========================= */
 function isLoggedIn() {
-    return !!localStorage.getItem("token");
+    return Boolean(localStorage.getItem("token"));
 }
 
 function logout() {
@@ -17,35 +17,36 @@ function logout() {
     window.location.href = "index.html";
 }
 
-function authHeaders() {
-    return {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${localStorage.getItem("token")}`
-    };
-}
-
 /* =========================
    CENTRAL API HANDLER
+   - ALWAYS sends JSON headers
+   - Adds Authorization only if needed
 ========================= */
 async function apiFetch(url, options = {}) {
     const headers = {
+        "Content-Type": "application/json",
         ...(options.headers || {}),
-        ...(options.auth !== false && isLoggedIn() ? authHeaders() : {})
+        ...(options.auth !== false && isLoggedIn()
+            ? { Authorization: `Bearer ${localStorage.getItem("token")}` }
+            : {})
     };
 
-    const res = await fetch(url, { ...options, headers });
+    const response = await fetch(url, {
+        ...options,
+        headers
+    });
 
-    if (res.status === 401) {
+    if (response.status === 401) {
         if (isLoggedIn()) logout();
-        throw new Error("Unauthorized. Please login.");
+        throw new Error("Unauthorized");
     }
 
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
         throw new Error(err.detail || "Request failed");
     }
 
-    return res.json();
+    return response.json();
 }
 
 /* =========================
@@ -53,9 +54,10 @@ async function apiFetch(url, options = {}) {
 ========================= */
 async function login(event) {
     event.preventDefault();
+
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
-    const msg = document.getElementById("loginMessage");
+    const message = document.getElementById("loginMessage");
 
     try {
         const res = await fetch(`${API_URL}/auth/login`, {
@@ -69,16 +71,17 @@ async function login(event) {
         const data = await res.json();
         localStorage.setItem("token", data.access_token);
         localStorage.setItem("role", "admin");
+
         window.location.href = "admin.html";
     } catch (err) {
-        if (msg) msg.textContent = err.message;
+        if (message) message.textContent = err.message;
     }
 }
 
 /* =========================
    PAGE PROTECTION
 ========================= */
-function protectPage(requiredRole = null) {
+function protectPage(requiredRole) {
     const role = localStorage.getItem("role");
     if (requiredRole && role !== requiredRole) {
         alert("Access denied");
@@ -92,53 +95,62 @@ function protectPage(requiredRole = null) {
    CUSTOMER MENU & ORDER
 ========================= */
 let menuItems = [];
-let order = [];
+let cart = [];
 
+/* ---------- Load Menu ---------- */
 async function loadMenu() {
-    menuItems = await apiFetch(`${API_URL}/menu/`, { auth: false });
     const menuDiv = document.getElementById("menuList");
     if (!menuDiv) return;
 
+    menuItems = await apiFetch(`${API_URL}/menu/`, { auth: false });
+
     menuDiv.innerHTML = menuItems
-        .filter(i => i.is_available)
+        .filter(item => item.is_available)
         .map(item => `
             <div class="menu-item">
-                <span>${item.name} - ${CURRENCY} ${item.price.toFixed(2)}</span>
-                <button onclick="addToOrder(${item.id})">Add</button>
+                <span>${item.name} — ${CURRENCY} ${item.price.toFixed(2)}</span>
+                <button onclick="addToCart(${item.id})">Add</button>
             </div>
-        `).join("");
+        `)
+        .join("");
 }
 
-function addToOrder(id) {
-    const item = menuItems.find(i => i.id === id);
+/* ---------- Add Item ---------- */
+function addToCart(itemId) {
+    const item = menuItems.find(i => i.id === itemId);
     if (!item) return;
 
-    const existing = order.find(i => i.menu_item_id === id);
+    const existing = cart.find(i => i.menu_item_id === itemId);
     if (existing) {
         existing.quantity += 1;
     } else {
-        order.push({
-            menu_item_id: id,
+        cart.push({
+            menu_item_id: item.id,
             name: item.name,
             unit_price: item.price,
             quantity: 1
         });
     }
-    renderOrder();
+
+    renderCart();
 }
 
-function renderOrder() {
-    const orderDiv = document.getElementById("orderList");
+/* ---------- Render Cart ---------- */
+function renderCart() {
+    const list = document.getElementById("orderList");
     const totalDiv = document.getElementById("orderTotal");
-    if (!orderDiv || !totalDiv) return;
+    if (!list || !totalDiv) return;
 
     let total = 0;
-    orderDiv.innerHTML = order.map(i => {
-        total += i.unit_price * i.quantity;
+
+    list.innerHTML = cart.map(item => {
+        const lineTotal = item.unit_price * item.quantity;
+        total += lineTotal;
+
         return `
             <div class="order-item">
-                <span>${i.name} x ${i.quantity}</span>
-                <span>${CURRENCY} ${(i.unit_price * i.quantity).toFixed(2)}</span>
+                <span>${item.name} × ${item.quantity}</span>
+                <span>${CURRENCY} ${lineTotal.toFixed(2)}</span>
             </div>
         `;
     }).join("");
@@ -146,80 +158,90 @@ function renderOrder() {
     totalDiv.textContent = `Total: ${CURRENCY} ${total.toFixed(2)}`;
 }
 
+/* ---------- Submit Order ---------- */
 async function submitOrder() {
-    if (order.length === 0) return alert("Order is empty");
+    if (cart.length === 0) {
+        alert("Order is empty");
+        return;
+    }
 
     try {
         await apiFetch(`${API_URL}/orders/`, {
             method: "POST",
-            auth: false, // guest allowed
+            auth: false, // guests allowed
             body: JSON.stringify({
-                items: order.map(i => ({
-                    menu_item_id: i.menu_item_id,
-                    quantity: i.quantity
+                items: cart.map(item => ({
+                    menu_item_id: item.menu_item_id,
+                    quantity: item.quantity
                 }))
             })
         });
 
-        order = [];
-        renderOrder();
+        cart = [];
+        renderCart();
         alert("Order placed successfully!");
     } catch (err) {
-        alert("Failed to place order: " + err.message);
+        alert(`Order failed: ${err.message}`);
     }
 }
 
 /* =========================
-   ORDER HISTORY (LOGGED-IN USERS ONLY)
+   ORDER HISTORY (LOGGED IN)
 ========================= */
 async function loadOrders() {
-    const ordersList = document.getElementById("ordersList");
-    if (!ordersList) return;
+    const ordersDiv = document.getElementById("ordersList");
+    if (!ordersDiv) return;
 
     if (!isLoggedIn()) {
-        ordersList.innerHTML = "<p>Guest users cannot see order history.</p>";
+        ordersDiv.innerHTML = "<p>Login to see your order history.</p>";
         return;
     }
 
     try {
         const orders = await apiFetch(`${API_URL}/orders/`);
-        ordersList.innerHTML = orders.map(o => `
+
+        ordersDiv.innerHTML = orders.map(order => `
             <div class="card">
-                <h3>Order #${o.id}</h3>
-                <p>${new Date(o.created_at).toLocaleString()}</p>
+                <h3>Order #${order.id}</h3>
+                <p>${new Date(order.created_at).toLocaleString()}</p>
                 <ul>
-                    ${o.items.map(i => `<li>${i.quantity} × ${i.menu_item_id} @ ${CURRENCY} ${i.unit_price.toFixed(2)}</li>`).join("")}
+                    ${order.items.map(i =>
+                        `<li>${i.quantity} × ${i.menu_item_id} @ ${CURRENCY} ${i.unit_price.toFixed(2)}</li>`
+                    ).join("")}
                 </ul>
-                <strong>Total: ${CURRENCY} ${o.total_amount.toFixed(2)}</strong>
+                <strong>Total: ${CURRENCY} ${order.total_amount.toFixed(2)}</strong>
             </div>
         `).join("");
     } catch (err) {
-        ordersList.innerHTML = `<p>Error loading orders: ${err.message}</p>`;
+        ordersDiv.innerHTML = `<p>Error: ${err.message}</p>`;
     }
 }
 
 /* =========================
-   ADMIN CRUD
+   ADMIN MENU CRUD
 ========================= */
 async function loadAdminMenu() {
-    const items = await apiFetch(`${API_URL}/menu/`);
     const list = document.getElementById("adminMenuList");
     const select = document.getElementById("updateSelect");
     if (!list || !select) return;
 
+    const items = await apiFetch(`${API_URL}/menu/`);
+
     list.innerHTML = items.map(i => `
         <li>
-            <b>${i.name}</b> - ${CURRENCY} ${i.price.toFixed(2)}
-            <button class="danger" onclick="deleteItem(${i.id})">Delete</button>
+            <b>${i.name}</b> — ${CURRENCY} ${i.price.toFixed(2)}
+            <button onclick="deleteItem(${i.id})" class="danger">Delete</button>
         </li>
     `).join("");
 
-    select.innerHTML = `<option value="">Select item</option>` +
+    select.innerHTML =
+        `<option value="">Select item</option>` +
         items.map(i => `<option value="${i.id}">${i.name}</option>`).join("");
 }
 
-async function addItem(event) {
-    event.preventDefault();
+async function addItem(e) {
+    e.preventDefault();
+
     await apiFetch(`${API_URL}/menu/`, {
         method: "POST",
         body: JSON.stringify({
@@ -229,17 +251,13 @@ async function addItem(event) {
             is_available: addAvailable.checked
         })
     });
-    event.target.reset();
+
+    e.target.reset();
     loadAdminMenu();
 }
 
-async function deleteItem(id) {
-    await apiFetch(`${API_URL}/menu/${id}`, { method: "DELETE" });
-    loadAdminMenu();
-}
-
-async function updateItem(event) {
-    event.preventDefault();
+async function updateItem(e) {
+    e.preventDefault();
     const id = updateSelect.value;
     if (!id) return alert("Select an item");
 
@@ -253,7 +271,12 @@ async function updateItem(event) {
         })
     });
 
-    event.target.reset();
+    e.target.reset();
+    loadAdminMenu();
+}
+
+async function deleteItem(id) {
+    await apiFetch(`${API_URL}/menu/${id}`, { method: "DELETE" });
     loadAdminMenu();
 }
 
@@ -261,26 +284,24 @@ async function updateItem(event) {
    AUTO INIT
 ========================= */
 document.addEventListener("DOMContentLoaded", () => {
-    // Admin login
+    // Login
     const loginForm = document.getElementById("loginForm");
     if (loginForm) loginForm.addEventListener("submit", login);
 
-    // Customer dashboard
+    // Customer pages
     if (document.getElementById("menuList")) {
         loadMenu();
         loadOrders();
     }
 
-    // Admin dashboard
-    const addForm = document.getElementById("addForm");
-    const updateForm = document.getElementById("updateForm");
-    const logoutBtn = document.getElementById("logoutBtn");
-
+    // Admin pages
     if (document.getElementById("adminMenuList")) {
         if (!protectPage("admin")) return;
-        if (addForm) addForm.addEventListener("submit", addItem);
-        if (updateForm) updateForm.addEventListener("submit", updateItem);
-        if (logoutBtn) logoutBtn.addEventListener("click", logout);
+
+        addForm?.addEventListener("submit", addItem);
+        updateForm?.addEventListener("submit", updateItem);
+        logoutBtn?.addEventListener("click", logout);
+
         loadAdminMenu();
     }
 });
