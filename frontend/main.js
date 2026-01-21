@@ -2,6 +2,7 @@
    CONFIG
 ========================= */
 const API_URL = "http://127.0.0.1:8000";
+const CURRENCY = "KES";
 
 /* =========================
    HELPERS
@@ -36,8 +37,8 @@ async function apiFetch(url, options = {}) {
     });
 
     if (res.status === 401) {
-        logout();
-        throw new Error("Session expired");
+        if (isLoggedIn()) logout();
+        throw new Error("Unauthorized. Please login.");
     }
 
     if (!res.ok) {
@@ -49,11 +50,10 @@ async function apiFetch(url, options = {}) {
 }
 
 /* =========================
-   LOGIN (admin)
+   ADMIN LOGIN
 ========================= */
 async function login(e) {
     e.preventDefault();
-
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
     const msg = document.getElementById("loginMessage");
@@ -70,10 +70,9 @@ async function login(e) {
         const data = await res.json();
         localStorage.setItem("token", data.access_token);
         localStorage.setItem("role", "admin");
-
-        window.location.href = "dashboard.html";
+        window.location.href = "admin.html";
     } catch (err) {
-        msg.textContent = err.message;
+        if (msg) msg.textContent = err.message;
     }
 }
 
@@ -82,18 +81,16 @@ async function login(e) {
 ========================= */
 function protectPage(requiredRole = null) {
     const role = localStorage.getItem("role");
-
     if (requiredRole && role !== requiredRole) {
         alert("Access denied");
         window.location.href = "index.html";
         return false;
     }
-
     return true;
 }
 
 /* =========================
-   DASHBOARD / MENU
+   CUSTOMER MENU & ORDER
 ========================= */
 let menuItems = [];
 let order = [];
@@ -101,12 +98,13 @@ let order = [];
 async function loadMenu() {
     menuItems = await apiFetch(`${API_URL}/menu/`, { auth: false });
     const menuDiv = document.getElementById("menuList");
+    if (!menuDiv) return;
 
     menuDiv.innerHTML = menuItems
         .filter(i => i.is_available)
         .map(item => `
             <div class="menu-item">
-                <span>${item.name} - $${item.price}</span>
+                <span>${item.name} - ${CURRENCY} ${item.price.toFixed(2)}</span>
                 <button onclick="addToOrder(${item.id})">Add</button>
             </div>
         `).join("");
@@ -114,8 +112,9 @@ async function loadMenu() {
 
 function addToOrder(id) {
     const item = menuItems.find(i => i.id === id);
-    const existing = order.find(i => i.menu_item_id === id);
+    if (!item) return;
 
+    const existing = order.find(i => i.menu_item_id === id);
     if (existing) {
         existing.quantity += 1;
     } else {
@@ -126,27 +125,26 @@ function addToOrder(id) {
             quantity: 1
         });
     }
-
     renderOrder();
 }
 
 function renderOrder() {
     const orderDiv = document.getElementById("orderList");
     const totalDiv = document.getElementById("orderTotal");
+    if (!orderDiv || !totalDiv) return;
 
     let total = 0;
-
-    orderDiv.innerHTML = order.map(item => {
-        total += item.unit_price * item.quantity;
+    orderDiv.innerHTML = order.map(i => {
+        total += i.unit_price * i.quantity;
         return `
             <div class="order-item">
-                <span>${item.name} x ${item.quantity}</span>
-                <span>$${item.unit_price * item.quantity}</span>
+                <span>${i.name} x ${i.quantity}</span>
+                <span>${CURRENCY} ${ (i.unit_price * i.quantity).toFixed(2) }</span>
             </div>
         `;
     }).join("");
 
-    totalDiv.textContent = `Total: $${total}`;
+    totalDiv.textContent = `Total: ${CURRENCY} ${total.toFixed(2)}`;
 }
 
 async function submitOrder() {
@@ -155,7 +153,7 @@ async function submitOrder() {
     try {
         await apiFetch(`${API_URL}/orders/`, {
             method: "POST",
-            auth: false, // <-- public order, no token required
+            auth: false, // allow guest orders
             body: JSON.stringify({
                 items: order.map(i => ({
                     menu_item_id: i.menu_item_id,
@@ -173,14 +171,13 @@ async function submitOrder() {
 }
 
 /* =========================
-   ORDER HISTORY
+   ORDER HISTORY (LOGGED-IN USERS ONLY)
 ========================= */
 async function loadOrders() {
     const ordersList = document.getElementById("ordersList");
     if (!ordersList) return;
 
     try {
-        // Only fetch if user is logged in
         if (isLoggedIn()) {
             const orders = await apiFetch(`${API_URL}/orders/`);
             ordersList.innerHTML = orders.map(o => `
@@ -189,14 +186,14 @@ async function loadOrders() {
                     <p>${new Date(o.created_at).toLocaleString()}</p>
                     <ul>
                         ${o.items.map(i => `
-                            <li>${i.quantity} × ${i.menu_item_id} @ $${i.unit_price}</li>
+                            <li>${i.quantity} × ${i.menu_item_id} @ ${CURRENCY} ${i.unit_price.toFixed(2)}</li>
                         `).join("")}
                     </ul>
-                    <strong>Total: $${o.total_amount}</strong>
+                    <strong>Total: ${CURRENCY} ${o.total_amount.toFixed(2)}</strong>
                 </div>
             `).join("");
         } else {
-            ordersList.innerHTML = "<p>Login to see order history.</p>";
+            ordersList.innerHTML = "<p>Guest users cannot see order history.</p>";
         }
     } catch (err) {
         ordersList.innerHTML = `<p>Error loading orders: ${err.message}</p>`;
@@ -210,10 +207,11 @@ async function loadAdminMenu() {
     const items = await apiFetch(`${API_URL}/menu/`);
     const list = document.getElementById("adminMenuList");
     const select = document.getElementById("updateSelect");
+    if (!list || !select) return;
 
     list.innerHTML = items.map(i => `
         <li>
-            <b>${i.name}</b> - $${i.price}
+            <b>${i.name}</b> - ${CURRENCY} ${i.price.toFixed(2)}
             <button class="danger" onclick="deleteItem(${i.id})">Delete</button>
         </li>
     `).join("");
@@ -262,29 +260,26 @@ async function updateItem(e) {
 }
 
 /* =========================
-   AUTO INIT PER PAGE
+   AUTO INIT
 ========================= */
 document.addEventListener("DOMContentLoaded", () => {
+    // Admin login
+    if (document.getElementById("loginForm")) {
+        loginForm.addEventListener("submit", login);
+    }
 
-    const role = localStorage.getItem("role");
-
-    // Customer Dashboard
+    // Customer dashboard
     if (document.getElementById("menuList")) {
         loadMenu();
         loadOrders();
     }
 
-    // Admin Dashboard
+    // Admin dashboard
     if (document.getElementById("adminMenuList")) {
         if (!protectPage("admin")) return;
         loadAdminMenu();
         addForm.addEventListener("submit", addItem);
         updateForm.addEventListener("submit", updateItem);
         logoutBtn.addEventListener("click", logout);
-    }
-
-    // Admin Login Form
-    if (document.getElementById("loginForm")) {
-        loginForm.addEventListener("submit", login);
     }
 });

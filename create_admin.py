@@ -6,23 +6,25 @@ from app.auth import hash_password
 def create_admin():
     db = SessionLocal()
 
-    # Remove old admin if exists
+    # Remove old admin if it exists
     old_admin = db.query(User).filter(User.username == "admin").first()
     if old_admin:
         db.delete(old_admin)
         db.commit()
 
-    # Add new admin
+    # Create a new admin user
     admin = User(
         username="admin",
-        password_hash=hash_password("admin123"),
+        password_hash=hash_password("admin123"),  # hashed with argon2
         role="admin"
     )
     db.add(admin)
     db.commit()
     db.close()
 
-    print("Admin user created successfully! Username: admin | Password: admin123")
+    print("✅ Admin user created successfully!")
+    print("Username: admin")
+    print("Password: admin123")
 
 if __name__ == "__main__":
     create_admin()
