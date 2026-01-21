@@ -1,5 +1,5 @@
 /* =========================
-   CONFIG
+   CONFIG Wuuuuuuui
 ========================= */
 const API_URL = "http://127.0.0.1:8000";
 const CURRENCY = "KES";
@@ -305,3 +305,6 @@ document.addEventListener("DOMContentLoaded", () => {
         loadAdminMenu();
     }
 });
+//Headache beyond belief 
+//Just want to sleep
+//But code must keep going  

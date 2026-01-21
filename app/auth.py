@@ -1,4 +1,4 @@
-# app/auth.py
+# app/auth.py what the hell
 from datetime import datetime, timedelta
 from typing import Optional
 from passlib.context import CryptContext
@@ -30,3 +30,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+# Went through hell to make this work 
+# Argon2 on Windows is a nightmare
+# But finally done
